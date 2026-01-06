@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import matplotlib.dates as mdates
 
 
 class CryptoOracleApp:
@@ -49,17 +50,30 @@ class CryptoOracleApp:
         self._create_plot(content_frame)
 
         # -------------------
-        # Przyciski
+        # Przyciski i Entry
         # -------------------
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(pady=10)
-
+        
         load_btn = ttk.Button(button_frame, text="Wczytaj dane", command=self.load_data)
         load_btn.pack(side="left", padx=10)
-
+        
         predict_btn = ttk.Button(button_frame, text="Predykcja (t+1)", command=self.predict_next)
         predict_btn.pack(side="left", padx=10)
+        
+        self.predicted = 0  # licznik predykcji
 
+        window_label = ttk.Label(button_frame, text="Ile ostatnich punktów na wykresie:")
+        window_label.pack(side="left", padx=5)
+
+        self.window_entry = ttk.Entry(button_frame, width=6)
+        self.window_entry.insert(0, "200")  # domyślna wartość
+        self.window_entry.pack(side="left", padx=5)
+        
+        refresh_btn = ttk.Button(button_frame, text="Odśwież wykres", command=self.refresh_plot)
+        refresh_btn.pack(side="left", padx=10)
+        
+        
     # ===============================
     # Funkcja tworząca tabelę
     # ===============================
@@ -100,20 +114,18 @@ class CryptoOracleApp:
         self.plot_frame = ttk.Frame(parent)
         self.plot_frame.grid(row=0, column=1, sticky="nsew", padx=5)
 
-        # matplotlib Figure
         self.fig = Figure(figsize=(5, 4), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self.ax.set_title("Wykres danych")
         self.ax.set_xlabel("Time")
         self.ax.set_ylabel("Value")
 
-        # Canvas w Tkinter
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
     # ===============================
-    # Funkcja wczytywania danych
+    # Wczytywanie danych
     # ===============================
     def load_data(self):
         file_path = filedialog.askopenfilename(
@@ -127,67 +139,83 @@ class CryptoOracleApp:
         time_col = df.columns[0]
         value_col = df.columns[1]
 
-        # ---- Aktualizacja tabeli ----
+        # ---- aktualizacja tabeli ----
         self.table.delete(*self.table.get_children())
         for _, row in df.iterrows():
             self.table.insert("", "end", values=(row[time_col], row[value_col]))
         self.table.update()
-
-        # ---- Aktualizacja wykresu ----
-        self.ax.clear()
-        self.ax.plot(df[time_col], df[value_col],
-             color='blue', linestyle='-')
-
-        self.ax.set_title("Wykres danych")
-        self.ax.set_xlabel(time_col)
-        self.ax.set_ylabel(value_col)
-        self.ax.grid(True)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().update()
-    
+        
+        # ---- reset predykcji ----
+        self.predicted = 0
+        
+        # ---- odśwież wykres ----
+        self.refresh_plot()
+        
+    # ===============================
+    # Predykcja
+    # ===============================
     def predict_next(self):
-        # Sprawdzenie, czy tabela ma dane
         if not self.table.get_children():
             tk.messagebox.showwarning("Brak danych", "Najpierw wczytaj dane!")
             return
-    
-        # Pobranie ostatnich wartości z tabeli
+
+        # losowa predykcja
         values = [float(self.table.item(item)["values"][1]) for item in self.table.get_children()]
         last_value = values[-1]
-    
-        # Pobranie ostatniej daty
+
         last_time_str = self.table.item(self.table.get_children()[-1])["values"][0]
         last_time = datetime.strptime(last_time_str, "%d.%m.%Y")
         next_time = last_time + timedelta(days=1)
         next_time_str = next_time.strftime("%d.%m.%Y")
-    
-        # ===============================
-        # Losowa predykcja – random walk
-        # ===============================
-        np.random.seed()
+
         delta = np.random.normal(loc=0, scale=0.5)
         predicted_value = last_value + delta
-    
-        # Dodanie nowego wiersza do tabeli
+
         self.table.insert("", "end", values=(next_time_str, round(predicted_value, 4)))
-    
-        # Aktualizacja wykresu
+        self.predicted += 1
+
+        # ---- odśwież wykres po predykcji ----
+        self.refresh_plot()
+
+    # ===============================
+    # Odśwież wykres
+    # ===============================
+    def refresh_plot(self):
+        if not self.table.get_children():
+            return
+
+        try:
+            window_size = int(self.window_entry.get())
+            if window_size < 10:
+                window_size = 10
+        except ValueError:
+            window_size = 200
+
         time_col = [self.table.item(item)["values"][0] for item in self.table.get_children()]
         value_col = [float(self.table.item(item)["values"][1]) for item in self.table.get_children()]
-    
+
+        time_window = time_col[-window_size:] if len(time_col) > window_size else time_col
+        value_window = value_col[-window_size:] if len(value_col) > window_size else value_col
+
         self.ax.clear()
-    
-        # ---- niebieska linia dla istniejących punktów ----
-        if len(value_col) > 1:
-            self.ax.plot(time_col[:-1], value_col[:-1], color='blue', linestyle='-')
-    
-        # ---- czerwona kropka dla ostatniego punktu (predykcja) ----
-        self.ax.plot(time_col[-1], value_col[-1], color='red', marker='o', markersize=8)
-    
+        dates_window = [datetime.strptime(d, "%d.%m.%Y") for d in time_window]
+
+        original_len = len(dates_window) - min(self.predicted, len(dates_window))
+        if original_len > 0:
+            self.ax.plot(dates_window[:original_len], value_window[:original_len], color='blue', linestyle='-')
+
+        if self.predicted > 0:
+            self.ax.plot(dates_window[original_len-1:], value_window[original_len-1:], color='red', marker='o', markersize=6, linestyle='-')
+
         self.ax.set_title("Wykres danych")
         self.ax.set_xlabel("Time")
         self.ax.set_ylabel("Value")
         self.ax.grid(True)
+
+        self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+        self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+        self.fig.autofmt_xdate(rotation=45)
+
         self.canvas.draw()
 
 
