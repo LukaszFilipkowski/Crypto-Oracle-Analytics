@@ -154,24 +154,27 @@ class CryptoOracleApp:
     # ===============================
     # Predykcja
     # ===============================
+    
+    def predict(self):
+        values = [float(self.table.item(item)["values"][1]) for item in self.table.get_children()]
+        last_value = values[-1]
+        
+        delta = np.random.normal(loc=0, scale=0.5)
+        predicted_value = last_value + delta
+        
+        return predicted_value
+    
     def predict_next(self):
         if not self.table.get_children():
             tk.messagebox.showwarning("Brak danych", "Najpierw wczytaj dane!")
             return
-
-        # losowa predykcja
-        values = [float(self.table.item(item)["values"][1]) for item in self.table.get_children()]
-        last_value = values[-1]
 
         last_time_str = self.table.item(self.table.get_children()[-1])["values"][0]
         last_time = datetime.strptime(last_time_str, "%d.%m.%Y")
         next_time = last_time + timedelta(days=1)
         next_time_str = next_time.strftime("%d.%m.%Y")
 
-        delta = np.random.normal(loc=0, scale=0.5)
-        predicted_value = last_value + delta
-
-        self.table.insert("", "end", values=(next_time_str, round(predicted_value, 4)))
+        self.table.insert("", "end", values=(next_time_str, round(self.predict(), 4)))
         self.predicted += 1
 
         # ---- odśwież wykres po predykcji ----
