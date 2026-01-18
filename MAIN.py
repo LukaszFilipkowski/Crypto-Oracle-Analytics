@@ -256,7 +256,7 @@ class CryptoOracleApp:
             self.time_label.config(
                 text=f"⏱ Czas predykcji: {self.last_pred_time*1000:.1f} ms")
 
-        self.table.insert("", "end", values=(next_time_str, round(pred_value, 4))) # wstawienie daty i prognozowanej wartości
+        self.table.insert("", "end", values=(next_time_str, round(pred_value, 6))) # wstawienie daty i prognozowanej wartości
         self.predicted += 1
 
         # ---- odśwież wykres po predykcji ----
