@@ -17,7 +17,7 @@ Zdecydowaliśmy się na tą licencję, ponieważ chcieliśmy umożliwić swobodn
 |ID | NAZWA | OPIS | PRIORYTET | KATEGORIA |
 |---|-------|------|-----------|-----------|
 |F-01|Wybór kryptowaluty| Użytkownik może wybrać kryptwalutę, dla której zostanie wykonana analiza.|1|Funkcjonalne - Dobór danych|
-|F-02|Wizualizacja danych historycznych| Aplikacja umozliwia użytkownikowi sprawdzenie zmienności cen kryptowalut we wskazanym okresie.|1|Funkcjonalne - Wizualizacja|
+|F-02|Wizualizacja danych historycznych| Aplikacja umożliwia użytkownikowi sprawdzenie zmienności cen kryptowalut we wskazanym okresie.|1|Funkcjonalne - Wizualizacja|
 |F-03|Generowanie prognozy| Po wybraniu kryptowaluty przez użytkownika, aplikacja wyświetli prognozę ceny tej kryptowaluty na następny dzień.|1| Funkcjonalne - Prognozowanie|
 |F-04|Zwizualizowanie prognozy| Użytkownik będzie miał możliwość zobaczenia na wykresie wygenerowanej wartości prognozy wraz z wyznaczonym dla niej przedziałem ufności.|1|Funkcjonalne - Wizualizacja|
 |F-05|Eksport wykresów|Użytkownik ma możliwość zapisania wykresów po ich wygenerowaniu.|2|Funkcjonalne - Eksport|
