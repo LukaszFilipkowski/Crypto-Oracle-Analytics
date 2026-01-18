@@ -13,6 +13,7 @@ import matplotlib.dates as mdates
 from statsmodels.tsa.arima.model import ARIMA
 import os
 import matplotlib.pyplot as plt
+import time
 plt.style.use("ggplot")
 
 # -------------------
@@ -87,6 +88,16 @@ class CryptoOracleApp:
         
         refresh_btn = ttk.Button(button_frame, text="Odśwież wykres", command=self.refresh_plot)  # po nacinięciu uruchamia refresh_plot()
         refresh_btn.pack(side="left", padx=10)  #pozycjonowanie przycisku
+        
+        # -------------------
+        # Licznik czasu
+        # -------------------
+        self.last_pred_time = None # Czas wykonywania predycji
+        self.time_label = ttk.Label(
+            self.plot_frame,
+            text="⏱ Czas predykcji: —",
+            font=("Arial", 10, "italic"))
+        self.time_label.pack(anchor="w", padx=10, pady=4)
         
         
     # ===============================
@@ -170,8 +181,11 @@ class CryptoOracleApp:
                 # values=() -> wartości kolumn w tym wierszu (czas i wartość)
         self.table.update() # wymusza natychmiastowe odświeżenie widoku w GUI
         
-        # ---- reset predykcji ----
+        # ---- reset zmiennych ----
         self.predicted = 0
+        self.last_pred_time = None
+        self.last_ci = None
+        self.time_label.config(text="⏱ Czas predykcji: —")
         
         # ---- odśwież wykres ----
         self.refresh_plot()
@@ -181,12 +195,14 @@ class CryptoOracleApp:
     # ===============================
     
     def predict(self):
+        start_time = time.perf_counter() # Rozpoczynamy mierzenie czasu predykcji
         # pobieramy wszystkie wartości z kolumny "Value" tabeli i zamieniamy na float
         values = [float(self.table.item(item)["values"][1]) 
               for item in self.table.get_children()]
 
         # minimalna liczba obserwacji potrzebna do modelu ARIMA
         if len(values) < 20:
+            self.last_pred_time = None
             return values[-1]  # jeśli za mało danych, zwracamy ostatnią wartość
 
         series = pd.Series(values)  # zamieniamy listę wartości na pandas Series (wymagane przez ARIMA)
@@ -203,12 +219,15 @@ class CryptoOracleApp:
             lower = conf_int.iloc[0, 0]  
             upper = conf_int.iloc[0, 1]  # pierwszy wiersz; druga kolumna
 
-
+            end_time = time.perf_counter()  # stop czasu
+            self.last_pred_time = end_time - start_time
+            
             return predicted_value, (lower, upper)
 
         except Exception as e:
             # jeśli coś pójdzie nie tak (np. brak danych, problem z dopasowaniem), zwracamy ostatnią wartość
             print("Błąd ARIMA:", e)
+            self.last_pred_time = None
             return values[-1], None
         
     
@@ -225,7 +244,10 @@ class CryptoOracleApp:
         
         pred_value, ci = self.predict()
         self.last_ci = ci
-
+        
+        if self.last_pred_time is not None:
+            self.time_label.config(
+                text=f"⏱ Czas predykcji: {self.last_pred_time*1000:.1f} ms")
 
         self.table.insert("", "end", values=(next_time_str, round(pred_value, 4))) # wstawienie daty i prognozowanej wartości
         self.predicted += 1
