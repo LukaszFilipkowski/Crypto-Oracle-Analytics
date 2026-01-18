@@ -75,6 +75,8 @@ class CryptoOracleApp:
         predict_btn.pack(side="left", padx=10)  #pozycjonowanie przycisku
         
         self.predicted = 0  # licznik predykcji
+        self.last_ci = None  
+            # będzie trzymać (lower, upper) dla ostatniej predykcji
 
         window_label = ttk.Label(button_frame, text="Ile ostatnich punktów na wykresie:") # Dodanie napisu w polu przycisków
         window_label.pack(side="left", padx=5)  #pozycjonowanie tekstu
@@ -192,17 +194,22 @@ class CryptoOracleApp:
         try:
             # tworzymy model ARIMA z parametrami (p=5, d=1, q=0)
             model = ARIMA(series, order=(5, 1, 0))
-            model_fit = model.fit()                 # dopasowujemy model do danych
+            model_fit = model.fit()                  # dopasowujemy model do danych
 
-            forecast = model_fit.forecast(steps=1)  # prognoza na 1 krok do przodu
-            predicted_value = forecast.iloc[0]      # pobieramy prognozowaną wartość
+            forecast = model_fit.get_forecast(steps=1)   # prognoza na 1 krok do przodu
+            predicted_value = forecast.predicted_mean.iloc[0]       # pobieramy prognozowaną wartość
 
-            return predicted_value
+            conf_int = forecast.conf_int(alpha=0.05) # przdział ufnosci 95%
+            lower = conf_int.iloc[0, 0]  
+            upper = conf_int.iloc[0, 1]  # pierwszy wiersz; druga kolumna
+
+
+            return predicted_value, (lower, upper)
 
         except Exception as e:
             # jeśli coś pójdzie nie tak (np. brak danych, problem z dopasowaniem), zwracamy ostatnią wartość
             print("Błąd ARIMA:", e)
-            return values[-1]
+            return values[-1], None
         
     
     def predict_next(self):
@@ -215,8 +222,12 @@ class CryptoOracleApp:
         last_time = datetime.strptime(last_time_str, "%d.%m.%Y")
         next_time = last_time + timedelta(days=1)     # dodajemy 1 dzień
         next_time_str = next_time.strftime("%d.%m.%Y")
+        
+        pred_value, ci = self.predict()
+        self.last_ci = ci
 
-        self.table.insert("", "end", values=(next_time_str, round(self.predict(), 4))) # wstawienie daty i prognozowanej wartości
+
+        self.table.insert("", "end", values=(next_time_str, round(pred_value, 4))) # wstawienie daty i prognozowanej wartości
         self.predicted += 1
 
         # ---- odśwież wykres po predykcji ----
@@ -262,10 +273,26 @@ class CryptoOracleApp:
             # ---- ostatnia data i wartość predykcji ----
             pred_date = dates_window[-1]
             pred_value = value_window[-1]
+            lower = upper = None
+            
+            # ---- przedział ufności ----
+            if self.last_ci is not None:
+                lower, upper = self.last_ci
+                
+                self.ax.vlines(
+                    x=pred_date,
+                    ymin=lower,
+                    ymax=upper,
+                    colors="red",
+                    linestyles="dashed",
+                    linewidth=2,
+                    alpha=0.8)
             
             # ---- tekst do wyświetlenia przy predykcji ----
-            label = f"Predykcja \n{pred_value:.4f}"
-
+            if lower is not None:
+                label = f"Predykcja\n{pred_value:.4f}\nCI: [{lower:.2f}, {upper:.2f}]"
+            else:
+                label = f"Predykcja\n{pred_value:.4f}"
             # ---- dodanie adnotacji z wartością predykcji ----
             self.ax.annotate(
                 label,                           # tekst adnotacji
@@ -282,8 +309,7 @@ class CryptoOracleApp:
                     arrowstyle="->",
                     color="red"
                     ),
-                fontsize=9                       # rozmiar czcionki
-                )
+                fontsize=9)                      # rozmiar czcionki
             
 
             # ---- czerwone kropki dla wszystkich predykcji (bez łączenia z poprzednią linią) ----
